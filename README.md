@@ -14,6 +14,14 @@ It uses official AVD Insights tables:
 
 ---
 
+## Official Source
+
+This query and all metric definitions are **derived from**  
+👉 [Microsoft Learn: Azure Virtual Desktop Insights Glossary](https://learn.microsoft.com/en-us/azure/virtual-desktop/insights-glossary)
+
+That glossary defines how AVD Insights metrics (Time-to-Connect, Connection stages, RTT, CPU, Memory, Input Delay, etc.) are calculated and collected through the `WVDConnections`, `WVDCheckpoints`, `WVDConnectionNetworkData`, and `Perf` tables.
+
+
 ## Why This Query Matters
 
 Running this combined query allows you to:
