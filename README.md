@@ -61,7 +61,7 @@ The query can be executed safely in any environment that has the standard AVD In
 | **Host** | The session host VM name. | Identifies which AVD VM the data belongs to. |
 | **GatewayRegion** | Azure region handling the client connection. | Indicates proximity; typically matches the host region. |
 | **Connections** | Number of connections during the lookback window. | Used for statistical weighting. |
-| **TTC_avg_s / TTC_p95_s** | *Time-to-Connect* in seconds from connection start → shell ready. | Ideal logon time: **30 s – 5 min** depending on FSLogix, GPO, and startup apps. Higher indicates profile or policy delays. |
+| **TTC_avg_s / TTC_p95_s** | *Time-to-Connect* in seconds from connection start → shell ready. | Ideal logon time: **60 s – 5 min** depending on FSLogix, GPO, and startup apps. Higher indicates profile or policy delays. |
 | **RTT_p50_ms / RTT_p95_ms** | *Round-Trip Time* in milliseconds between client and AVD gateway. | Below **100 ms** = good; > 150 ms = potential WAN latency. |
 | **CPU_avg / CPU_p95** | Average and 95th percentile CPU utilization from the VM. | 5 – 60 % is typical. > 80 % means host may be overloaded. |
 | **MEM_avg / MEM_p95** | Average and 95th percentile memory usage (% committed bytes). | Should remain below 80 %. `NaN` means the counter wasn’t collected. |
@@ -85,7 +85,7 @@ The query can be executed safely in any environment that has the standard AVD In
 
 | Metric | Healthy Range | Observations |
 |---------|----------------|--------------|
-| **Time-to-Connect (TTC)** | 30 s – 5 min | Varies by FSLogix, GPOs, startup apps. |
+| **Time-to-Connect (TTC)** | 60 s – 5 min | Varies by FSLogix, GPOs, startup apps. |
 | **Round Trip Time (RTT)** | < 100 ms (p95) | Higher values = cross-region or poor client network. |
 | **CPU (p95)** | < 80 % | Sustained > 90 % indicates scaling needed. |
 | **Memory (p95)** | < 80 % | Check for leaks or session bloat if higher. |
