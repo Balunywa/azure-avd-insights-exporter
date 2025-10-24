@@ -111,5 +111,5 @@ The query can be executed safely in any environment that has the standard AVD In
 
 ---
 
-**Author:** Lukman Balunywa  
-**Purpose:** Baseline analysis for Azure Virtual Desktop session hosts using unified AVD Insights metrics.
+**Source:** [Microsoft Learn – Azure Virtual Desktop Insights Glossary](https://learn.microsoft.com/en-us/azure/virtual-desktop/insights-glossary)  
+**Purpose:** Baseline health assessment of AVD session hosts through combined KQL analysis.
