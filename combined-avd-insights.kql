@@ -1,0 +1,79 @@
+let lookback = 24h;
+// ───────────────────────────────────────────────────────────────────────────────
+// Time-to-Connect (TTC) per session host — avg/p95 + connection count
+// ───────────────────────────────────────────────────────────────────────────────
+let TTC = materialize(
+    WVDConnections
+    | where TimeGenerated >= ago(lookback) and State == "Started"
+    | project CorrelationId, Host = SessionHostName, StartTime = TimeGenerated
+    | join kind=inner (
+        WVDCheckpoints
+        | where TimeGenerated >= ago(lookback)
+        | where Name in ("ShellReady","RdpShellAppExecuted")
+        | summarize EndTime = min(TimeGenerated) by CorrelationId
+    ) on CorrelationId
+    | extend TTC_s = (EndTime - StartTime)/1s
+    | where TTC_s > 0 and TTC_s < 3600
+    | summarize Connections = count(),
+                TTC_avg_s    = avg(TTC_s),
+                TTC_p95_s    = percentile(TTC_s, 95)
+      by Host
+);
+// ───────────────────────────────────────────────────────────────────────────────
+// RTT by session host & gateway region (median/p95)
+// ───────────────────────────────────────────────────────────────────────────────
+let RTT = materialize(
+    WVDConnectionNetworkData
+    | where TimeGenerated >= ago(lookback)
+    | join kind=inner (
+        WVDConnections
+        | where TimeGenerated >= ago(lookback)
+        | project CorrelationId, Host = SessionHostName, GatewayRegion
+    ) on CorrelationId
+    | summarize RTT_p50_ms = percentile(EstRoundTripTimeInMs, 50),
+                RTT_p95_ms = percentile(EstRoundTripTimeInMs, 95)
+      by Host, GatewayRegion
+);
+// ───────────────────────────────────────────────────────────────────────────────
+// CPU & Memory per host (avg/p95) from Perf
+// ───────────────────────────────────────────────────────────────────────────────
+let PERF = materialize(
+    Perf
+    | where TimeGenerated >= ago(lookback)
+    | where ((ObjectName == "Processor Information" or ObjectName == "Processor")
+             and CounterName == "% Processor Time"
+             and (InstanceName == "_Total" or isempty(InstanceName)))
+        or (ObjectName == "Memory"
+            and CounterName == "% Committed Bytes in Use")
+    | summarize CPU_avg = avgif(CounterValue, CounterName == "% Processor Time"),
+                CPU_p95 = percentile(CounterValue, 95),
+                MEM_avg = avgif(CounterValue, CounterName == "% Committed Bytes in Use"),
+                MEM_p95 = percentile(CounterValue, 95)
+      by Host = Computer
+);
+// ───────────────────────────────────────────────────────────────────────────────
+// User Input Delay (worst p95) per host
+// ───────────────────────────────────────────────────────────────────────────────
+let INPUT = materialize(
+    Perf
+    | where TimeGenerated >= ago(lookback)
+    | where ObjectName == "User Input Delay per Process" and CounterName == "Max Input Delay"
+    | summarize Input_p95_ms = percentile(CounterValue, 95)
+      by Host = Computer
+);
+// ───────────────────────────────────────────────────────────────────────────────
+// Combine all into one summary table
+// ───────────────────────────────────────────────────────────────────────────────
+TTC
+| join kind=fullouter RTT  on Host
+| join kind=fullouter PERF on Host
+| join kind=fullouter INPUT on Host
+| project Host,
+          GatewayRegion,
+          Connections,
+          TTC_avg_s, TTC_p95_s,
+          RTT_p50_ms, RTT_p95_ms,
+          CPU_avg, CPU_p95,
+          MEM_avg, MEM_p95,
+          Input_p95_ms
+| order by CPU_p95 desc
