@@ -1,127 +1,107 @@
-# Azure Virtual Desktop (AVD) Insights Collector
+# Azure Virtual Desktop Insights – Combined Baseline Query
 
-## 📘 Overview
-This PowerShell script (`Get-AVD-Insights-Extended.ps1`) automates the collection and export of **Azure Virtual Desktop Insights** metrics from a Log Analytics Workspace.
+## Purpose
 
-It retrieves detailed telemetry defined in Microsoft’s [AVD Insights Glossary](https://learn.microsoft.com/en-us/azure/virtual-desktop/insights-glossary), including:
-- **Time to Connect** (overall and component breakdowns)
-- **Connection success rate & daily trends**
-- **User Input Delay (median/p95)**
-- **RTT (Round Trip Time)** by Gateway Region
-- **Estimated Bandwidth (kBps)** by Gateway Region
-- **CPU and Memory utilization** per session host and environment-wide
-- (Optional) **Process I/O performance** from your own CSV (e.g., disk and I/O metrics)
+This query provides a **single, unified view** of your Azure Virtual Desktop (AVD) session host health and performance metrics.  
+Instead of running multiple independent queries (Time-to-Connect, RTT, CPU, Memory, Input Delay), this **combined query** joins them together into one summary table.
 
-All collected data is saved into a single **Excel workbook**, with an optional **PDF export** for easy sharing and review.
+It uses official AVD Insights tables:
+
+- `WVDConnections` → connection sessions  
+- `WVDCheckpoints` → connection stage timestamps  
+- `WVDConnectionNetworkData` → network quality (RTT, bandwidth)  
+- `Perf` → performance counters (CPU, Memory, Input Delay)
 
 ---
 
-## 🎯 Purpose
-Azure Virtual Desktop offers rich telemetry via Log Analytics, but querying and correlating the data manually can be time-consuming and inconsistent.
+## Why This Query Matters
 
-This script provides:
-- A **repeatable, automated baseline** for performance, latency, and user experience analysis.
-- A **comprehensive snapshot** of AVD health across hosts, users, and gateway regions.
-- **Faster troubleshooting** by surfacing key metrics (RTT, logon time, CPU, memory, input delay) in one place.
-- A **developer-friendly foundation** for building your own dashboards or automation pipelines.
+Running this combined query allows you to:
 
----
+- Establish a **performance baseline** across all AVD session hosts.
+- Detect outliers (slow logons, high latency, overloaded VMs) quickly.
+- Compare **network health (RTT)** and **connection performance (TTC)** by region.
+- Correlate end-user experience (Input Delay) with backend VM performance.
 
-## ⚠️ Important: Dev/Non-Production Use Only
-> 🚨 **This script must only be run in development or test environments.**
->
-> - It uses diagnostic queries that can generate large volumes of data.
-> - It performs real-time analytics against your Log Analytics workspace and may incur query costs.
-> - It is designed for **engineering validation, baselining, or lab testing** — **not** for production automation or scheduled monitoring.
-> - Always validate in a sandboxed environment before considering any adaptation for production.
+This is not a point-in-time diagnostic — it’s a **trend-based health snapshot** for engineering baselines and tuning.
 
 ---
 
-## 🧩 Value
-- **Consolidation:** Combines metrics from multiple KQL tables (`WVDConnections`, `WVDCheckpoints`, `Perf`, `WVDConnectionNetworkData`) into a single export.
-- **Transparency:** Maps directly to the metrics Microsoft defines in the official AVD Insights documentation.
-- **Flexibility:** Supports optional inclusion of your own per-process I/O metrics.
-- **Ease of analysis:** Data is written to structured Excel worksheets — perfect for filtering, graphing, and trend analysis.
+##  How to Run It
+
+1. Open **Azure Portal** → **Monitor** → **Logs** under your AVD **Log Analytics workspace**.
+2. Set **Time range** to the desired window (for example, *Last 24 hours*).
+3. Paste the combined query (from `combined-avd-insights.kql`) and click **Run**.
+4. Optionally, **pin the result** to a Workbook for ongoing monitoring.
+
+The query can be executed safely in any environment that has the standard AVD Insights data tables.
 
 ---
 
-## 🚀 How to Use
+##  Example Output (Sample Host)
 
-### 1. Prerequisites
-- PowerShell 7+ (recommended)
-- Modules:
-  ```powershell
-  Install-Module Az.Accounts,Az.OperationalInsights,ImportExcel -Scope CurrentUser -Force
-A valid Azure Log Analytics Workspace ID with AVD Insights data.
+| Host | GatewayRegion | Connections | TTC_avg_s | TTC_p95_s | RTT_p50_ms | RTT_p95_ms | CPU_avg | CPU_p95 | MEM_avg | MEM_p95 | Input_p95_ms |
+|------|----------------|--------------|------------|------------|-------------|-------------|----------|----------|----------|----------|----------------|
+| vmdem2dusw30001 | eastus2 | 1 | 90.6 | 90.6 | 72 | 78 | 6.1 | 21.1 | NaN | 21.1 | 0 |
 
-Optional: Excel (for PDF export).
+---
 
-2. Running the Script
-Basic usage (24-hour lookback)
-powershell
-Copy code
-.\Get-AVD-Insights-Extended.ps1 -WorkspaceId "<YOUR-LAW-GUID>" -LookbackHours 24 -OutputFolder "C:\AVDReports"
-With optional PDF export
-powershell
-Copy code
-.\Get-AVD-Insights-Extended.ps1 -WorkspaceId "<YOUR-LAW-GUID>" -ExportPdf
-Including your process performance CSV
-powershell
-Copy code
-.\Get-AVD-Insights-Extended.ps1 -WorkspaceId "<YOUR-LAW-GUID>" `
-  -ProcessCsv "C:\path\process_io_times_converted.csv" -ExportPdf
-3. Output Files
-Each run generates a timestamped Excel workbook and (optional) PDF:
+##  Understanding Each Column
 
-swift
-Copy code
-C:\AVDReports\
- ├── AVD-Insights_YYYYMMDD_HHMM.xlsx
- ├── AVD-Insights_YYYYMMDD_HHMM.pdf  (optional)
-Excel Workbook Tabs
-Sheet	Description
-TimeToConnect	Total time users take to connect (p50/p95)
-TTC_Components	Breakdown by stage: UserRoute, StackConnected, Logon, ShellReady
-ConnectionSuccess	Total, completed, and connected sessions with success rate
-DailyConnections	Connection counts per day
-InputDelay	User Input Delay per process (median & p95)
-RTT_ByGateway	Median/p95 RTT (ms) by gateway region
-RTT_TS_ByGateway	10-min RTT time series per gateway region
-RTT_TS_AllRegions	Environment-wide RTT time series
-Bandwidth_ByGateway	Estimated available bandwidth per region
-Host_CPU_Memory	Host-level CPU and memory utilization (p50/p95/avg)
-CPU_TimeSeries / Memory_TimeSeries	5-min time series per host
-CPU_Env_TimeSeries / Mem_Env_TimeSeries	Aggregate environment time series
-ProcessIO (optional)	Your per-process disk & I/O performance data
-ProcessIO_Summary (optional)	Totals for disk, I/O, and count statistics
+| Metric | Description | Expected Range / Notes |
+|---------|--------------|-----------------------|
+| **Host** | The session host VM name. | Identifies which AVD VM the data belongs to. |
+| **GatewayRegion** | Azure region handling the client connection. | Indicates proximity; typically matches the host region. |
+| **Connections** | Number of connections during the lookback window. | Used for statistical weighting. |
+| **TTC_avg_s / TTC_p95_s** | *Time-to-Connect* in seconds from connection start → shell ready. | Ideal logon time: **30 s – 5 min** depending on FSLogix, GPO, and startup apps. Higher indicates profile or policy delays. |
+| **RTT_p50_ms / RTT_p95_ms** | *Round-Trip Time* in milliseconds between client and AVD gateway. | Below **100 ms** = good; > 150 ms = potential WAN latency. |
+| **CPU_avg / CPU_p95** | Average and 95th percentile CPU utilization from the VM. | 5 – 60 % is typical. > 80 % means host may be overloaded. |
+| **MEM_avg / MEM_p95** | Average and 95th percentile memory usage (% committed bytes). | Should remain below 80 %. `NaN` means the counter wasn’t collected. |
+| **Input_p95_ms** | 95th percentile of *User Input Delay* (keyboard/mouse lag). | < 100 ms ideal. High values indicate UI lag or network jitter. |
 
-🧠 Understanding the Data
-All queries and metric definitions map directly to Microsoft’s Azure Virtual Desktop Insights Glossary.
-Key sources include:
+---
 
-WVDConnections, WVDCheckpoints — for connection stages and time-to-connect metrics
+##  Example Interpretation (from the table above)
 
-WVDConnectionNetworkData — for RTT and bandwidth by gateway region
+- **TTC (90 s)** → Slightly long; likely due to backend startup (FSLogix, GPO).  
+- **RTT (72–78 ms)** → Normal latency; healthy regional routing.  
+- **CPU (6–21 %)** → Well within acceptable range.  
+- **MEM (21 %)** → Low utilization or missing samples (NaN average).  
+- **Input Delay (0 ms)** → Excellent user responsiveness.
 
-Perf — for CPU, memory, and input delay counters
+> ⚙️ This example shows a **healthy baseline** where login time is elevated mainly because background apps and services initialize slowly — expected in development or “cold start” scenarios.
 
-User Input Delay per Process — for user experience metrics
+---
 
-🧰 Example Use Cases
-Benchmarking login and session performance during golden image updates.
+## Baseline Guidelines
 
-Comparing RTT across gateway regions to diagnose connectivity variance.
+| Metric | Healthy Range | Observations |
+|---------|----------------|--------------|
+| **Time-to-Connect (TTC)** | 30 s – 5 min | Varies by FSLogix, GPOs, startup apps. |
+| **Round Trip Time (RTT)** | < 100 ms (p95) | Higher values = cross-region or poor client network. |
+| **CPU (p95)** | < 80 % | Sustained > 90 % indicates scaling needed. |
+| **Memory (p95)** | < 80 % | Check for leaks or session bloat if higher. |
+| **Input Delay (p95)** | < 100 ms | Higher indicates user lag. |
 
-Analyzing CPU/memory saturation trends across session hosts.
+---
 
-Correlating disk I/O performance from your CSV to session delays.
+## Value to Teams
 
-Producing an on-demand AVD performance baseline for internal reviews.
+- **Ops** → Quickly identify slow hosts or bad regions.  
+- **Infra Engineers** → Validate autoscale / VM sizing decisions.  
+- **Support** → Use as “known good baseline” to compare user complaints.  
+- **Developers** → Measure impact of backend startup code on user experience.
 
-🛑 Disclaimer
-This script is provided as-is, without warranty or support.
-It is intended for development and testing only.
-Running it in production or attaching it to automated pipelines may cause performance and cost impacts in your Azure environment.
+---
 
-🏷️ License
-MIT License – feel free to fork, extend, and improve
+## Notes
+
+- These metrics **will vary by environment** (FSLogix configuration, VM SKU, app load).  
+- The “ideal” values above are guidance based on Microsoft’s internal AVD Insights benchmarks.  
+- Treat this as a **baseline** — not a performance SLA.  
+- For best accuracy, collect data over **3–5 days** of normal load before setting thresholds.
+
+---
+
+**Author:** Lukman Balunywa  
+**Purpose:** Baseline analysis for Azure Virtual Desktop session hosts using unified AVD Insights metrics.
