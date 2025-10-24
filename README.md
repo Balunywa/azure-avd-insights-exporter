@@ -1,0 +1,1 @@
+# azure-avd-insights-exporter
